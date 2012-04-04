@@ -62,9 +62,16 @@ func OpenDatabase(env Environment, txn Transaction, file, database string, dbtyp
 		return
 	}
 
-	cfile := C.CString(file)
-	cdatabase := C.CString(database)
+	var cfile, cdatabase *C.char
+	if len(file) > 0 {
+		cfile = C.CString(file)
+	}
+	if len(database) > 0 {
+		cdatabase = C.CString(database)
+	}
+
 	err = check(C.db_open(db.ptr, txn.ptr, cfile, cdatabase, C.DBTYPE(dbtype), C.u_int32_t(flags), C.int(mode)))
+
 	C.free(unsafe.Pointer(cfile))
 	C.free(unsafe.Pointer(cdatabase))
 
