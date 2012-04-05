@@ -16,7 +16,7 @@ package db
 import "C"
 
 // Transaction isolation level.
-type IsolationLevel C.u_int32_t
+type IsolationLevel int
 
 // Available transaction isolation levels.
 const (
