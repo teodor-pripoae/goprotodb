@@ -28,7 +28,6 @@ const (
 // Transaction configuration.
 type TransactionConfig struct {
 	Parent Transaction       // Parent transaction.
-	Isolation IsolationLevel // Transaction isolation level.
 	Bulk bool                // Optimize for bulk insertions.
 	NoWait bool              // Fail instead of waiting for locks.
 	NoSync bool              // Do not flush to log when committing.
@@ -47,12 +46,11 @@ var NoTransaction = Transaction{ptr: nil}
 // automatically committed if the action doesn't return an error. If
 // an error occurs, the transaction is automatically aborted. Any
 // error is passed through to the caller.
-func (env Environment) WithTransaction(config *TransactionConfig, action func(Transaction) error) (err error) {
+func (env Environment) WithTransaction(isolation IsolationLevel, config *TransactionConfig, action func(Transaction) error) (err error) {
 	var parent *C.DB_TXN = NoTransaction.ptr
-	var flags C.u_int32_t = C.u_int32_t(ReadCommitted)
+	var flags C.u_int32_t = C.u_int32_t(isolation)
 	if config != nil {
 		parent = config.Parent.ptr
-		flags = C.u_int32_t(config.Isolation)
 		if config.Bulk {
 			flags |= C.DB_TXN_BULK
 		}
