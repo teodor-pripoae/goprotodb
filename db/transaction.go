@@ -15,6 +15,26 @@ package db
  */
 import "C"
 
+// Transaction isolation level.
+type IsolationLevel C.u_int32_t
+
+// Available transaction isolation levels.
+const (
+	ReadCommitted = IsolationLevel(C.DB_READ_COMMITTED)
+	ReadUncommitted = IsolationLevel(C.DB_READ_UNCOMMITTED)
+	Snapshot = IsolationLevel(C.DB_TXN_SNAPSHOT)
+)
+
+// Transaction configuration.
+type TransactionConfig struct {
+	Parent Transaction       // Parent transaction.
+	Isolation IsolationLevel // Transaction isolation level.
+	Bulk bool                // Optimize for bulk insertions.
+	NoWait bool              // Fail instead of waiting for locks.
+	NoSync bool              // Do not flush to log when committing.
+	WriteNoSync bool         // Do not flush log when committing.
+}
+
 // Transaction in a database environment.
 type Transaction struct {
 	ptr *C.DB_TXN
@@ -27,9 +47,28 @@ var NoTransaction = Transaction{ptr: nil}
 // automatically committed if the action doesn't return an error. If
 // an error occurs, the transaction is automatically aborted. Any
 // error is passed through to the caller.
-func (env Environment) WithTransaction(parent Transaction, flags uint32, action func(Transaction) error) (err error) {
+func (env Environment) WithTransaction(config *TransactionConfig, action func(Transaction) error) (err error) {
+	var parent *C.DB_TXN = NoTransaction.ptr
+	var flags C.u_int32_t = C.u_int32_t(ReadCommitted)
+	if config != nil {
+		parent = config.Parent.ptr
+		flags = C.u_int32_t(config.Isolation)
+		if config.Bulk {
+			flags |= C.DB_TXN_BULK
+		}
+		if config.NoWait {
+			flags |= C.DB_TXN_NOWAIT
+		}
+		if config.NoSync {
+			flags |= C.DB_TXN_NOSYNC
+		}
+		if config.WriteNoSync {
+			flags |= C.DB_TXN_WRITE_NOSYNC
+		}
+	}
+
 	var txn Transaction
-	err = check(C.db_env_txn_begin(env.ptr, parent.ptr, &txn.ptr, C.u_int32_t(flags)))
+	err = check(C.db_env_txn_begin(env.ptr, parent, &txn.ptr, flags))
 	if err != nil {
 		return
 	}
