@@ -45,7 +45,7 @@ func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, e
 
 	var chome *C.char = C.CString(home)
 	var flags C.u_int32_t = C.DB_THREAD
-	var mode C.int = 0755
+	var mode C.int = 0
 	if config != nil {
 		mode = C.int(config.Mode)
 		if config.Create {
