@@ -38,7 +38,7 @@ import (
  */
 import "C"
 
-// Type of database.
+// Type of databases.
 type DatabaseType int
 
 // Available database types.
@@ -50,37 +50,60 @@ const (
 	Unknown = DatabaseType(C.DB_UNKNOWN)
 )
 
+// Database configuration.
+type DatabaseConfig struct {
+	Mode os.FileMode      // File creation mode for the environment.
+	Create bool           // Create the database, if necessary.
+	ReadUncommitted bool  // Enable support for read-uncommitted isolation.
+	Snapshot bool         // Enable support for snapshot isolation.
+}
+
 // Database.
 type Database struct {
 	ptr *C.DB
 }
 
 // Open a database in the given file and environment.
-func OpenDatabase(env Environment, txn Transaction, file, database string, dbtype DatabaseType, flags uint32, mode os.FileMode) (db Database, err error) {
+func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype DatabaseType, config *DatabaseConfig) (db Database, err error) {
 	err = check(C.db_create(&db.ptr, env.ptr, 0))
 	if err != nil {
 		return
 	}
 
-	var cfile, cdatabase *C.char
+	var cfile, cname *C.char
 	if len(file) > 0 {
 		cfile = C.CString(file)
 	}
-	if len(database) > 0 {
-		cdatabase = C.CString(database)
+	if len(name) > 0 {
+		cname = C.CString(name)
 	}
 
-	err = check(C.db_open(db.ptr, txn.ptr, cfile, cdatabase, C.DBTYPE(dbtype), C.u_int32_t(flags), C.int(mode)))
+	var flags C.u_int32_t = C.DB_THREAD
+	var mode C.int = 0
+	if config != nil {
+		mode = C.int(config.Mode)
+		if config.Create {
+			flags |= C.DB_CREATE
+		}
+		if config.ReadUncommitted {
+			flags |= C.DB_READ_UNCOMMITTED
+		}
+		if config.Snapshot {
+			flags |= C.DB_MULTIVERSION
+		}
+	}
+
+	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, C.DBTYPE(dbtype), flags, mode))
 
 	C.free(unsafe.Pointer(cfile))
-	C.free(unsafe.Pointer(cdatabase))
+	C.free(unsafe.Pointer(cname))
 
 	return
 }
 
 // Close the database.
-func (db Database) Close(flags uint32) (err error) {
-	err = check(C.db_close(db.ptr, C.u_int32_t(flags)))
+func (db Database) Close() (err error) {
+	err = check(C.db_close(db.ptr, 0))
 	return
 }
 
