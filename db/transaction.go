@@ -12,7 +12,7 @@ package db
  static inline int db_txn_commit(DB_TXN *txn, u_int32_t flags) {
  	return txn->commit(txn, flags);
  }
- */
+*/
 import "C"
 
 // Transaction isolation level.
@@ -20,18 +20,18 @@ type IsolationLevel int
 
 // Available transaction isolation levels.
 const (
-	ReadCommitted = IsolationLevel(C.DB_READ_COMMITTED)
+	ReadCommitted   = IsolationLevel(C.DB_READ_COMMITTED)
 	ReadUncommitted = IsolationLevel(C.DB_READ_UNCOMMITTED)
-	Snapshot = IsolationLevel(C.DB_TXN_SNAPSHOT)
+	Snapshot        = IsolationLevel(C.DB_TXN_SNAPSHOT)
 )
 
 // Transaction configuration.
 type TransactionConfig struct {
-	Parent Transaction       // Parent transaction.
-	Bulk bool                // Optimize for bulk insertions.
-	NoWait bool              // Fail instead of waiting for locks.
-	NoSync bool              // Do not flush to log when committing.
-	WriteNoSync bool         // Do not flush log when committing.
+	Parent      Transaction // Parent transaction.
+	Bulk        bool        // Optimize for bulk insertions.
+	NoWait      bool        // Fail instead of waiting for locks.
+	NoSync      bool        // Do not flush to log when committing.
+	WriteNoSync bool        // Do not flush log when committing.
 }
 
 // Transaction in a database environment.

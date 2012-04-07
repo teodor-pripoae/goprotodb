@@ -15,17 +15,17 @@ import (
  static inline int db_env_close(DB_ENV *env, u_int32_t flags) {
  	return env->close(env, flags);
  }
- */
+*/
 import "C"
 
 // Database environment configuration.
 type EnvironmentConfig struct {
-	Mode os.FileMode    // File creation mode for the environment.
-	Create bool         // Create the environment, if necessary.
-	Recover bool        // Run recovery on the environment, if necessary.
-	Transactional bool  // Enable transactions in the environment.
-	NoSync bool         // Do not flush to log when committing.
-	WriteNoSync bool    // Do not flush log when committing.
+	Mode          os.FileMode // File creation mode for the environment.
+	Create        bool        // Create the environment, if necessary.
+	Recover       bool        // Run recovery on the environment, if necessary.
+	Transactional bool        // Enable transactions in the environment.
+	NoSync        bool        // Do not flush to log when committing.
+	WriteNoSync   bool        // Do not flush log when committing.
 }
 
 // Database environment.
