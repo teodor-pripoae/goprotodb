@@ -35,6 +35,9 @@ import (
  #cgo LDFLAGS: -ldb
  #include <stdlib.h>
  #include <db.h>
+ static inline int db_set_encrypt(DB *db, const char *passwd, u_int32_t flags) {
+ 	return db->set_encrypt(db, passwd, flags);
+ }
  static inline int db_open(DB *db, DB_TXN *txn, const char *file, const char *database, DBTYPE type, u_int32_t flags, int mode) {
  	return db->open(db, txn, file, database, type, flags, mode);
  }
@@ -82,6 +85,7 @@ const (
 
 // Database configuration.
 type DatabaseConfig struct {
+	Password        string      // Encryption password or an empty string.
 	Mode            os.FileMode // File creation mode for the environment.
 	Create          bool        // Create the database, if necessary.
 	ReadUncommitted bool        // Enable support for read-uncommitted isolation.
@@ -100,17 +104,17 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 		return
 	}
 
-	var cfile, cname *C.char
-	if len(file) > 0 {
-		cfile = C.CString(file)
-	}
-	if len(name) > 0 {
-		cname = C.CString(name)
-	}
-
 	var flags C.u_int32_t = C.DB_THREAD
 	var mode C.int = 0
 	if config != nil {
+		if len(config.Password) > 0 {
+			cpassword := C.CString(config.Password)
+			err = check(C.db_set_encrypt(db.ptr, cpassword, 0))
+			C.free(unsafe.Pointer(cpassword))
+			if err != nil {
+				return
+			}
+		}
 		mode = C.int(config.Mode)
 		if config.Create {
 			flags |= C.DB_CREATE
@@ -123,8 +127,14 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 		}
 	}
 
+	var cfile, cname *C.char
+	if len(file) > 0 {
+		cfile = C.CString(file)
+	}
+	if len(name) > 0 {
+		cname = C.CString(name)
+	}
 	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, C.DBTYPE(dbtype), flags, mode))
-
 	C.free(unsafe.Pointer(cfile))
 	C.free(unsafe.Pointer(cname))
 

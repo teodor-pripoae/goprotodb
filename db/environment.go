@@ -34,6 +34,9 @@ import (
  #cgo LDFLAGS: -ldb
  #include <stdlib.h>
  #include <db.h>
+ static inline int db_env_set_encrypt(DB_ENV *env, const char *passwd, u_int32_t flags) {
+ 	return env->set_encrypt(env, passwd, flags);
+ }
  static inline int db_env_open(DB_ENV *env, const char *home, u_int32_t flags, int mode) {
  	return env->open(env, home, flags, mode);
  }
@@ -45,6 +48,7 @@ import "C"
 
 // Database environment configuration.
 type EnvironmentConfig struct {
+	Password      string      // Encryption password or an empty string.
 	Mode          os.FileMode // File creation mode for the environment.
 	Create        bool        // Create the environment, if necessary.
 	Recover       bool        // Run recovery on the environment, if necessary.
@@ -68,10 +72,17 @@ func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, e
 		return
 	}
 
-	var chome *C.char = C.CString(home)
 	var flags C.u_int32_t = C.DB_THREAD
 	var mode C.int = 0
 	if config != nil {
+		if len(config.Password) > 0 {
+			cpassword := C.CString(config.Password)
+			err = check(C.db_env_set_encrypt(env.ptr, cpassword, 0))
+			C.free(unsafe.Pointer(cpassword))
+			if err != nil {
+				return
+			}
+		}
 		mode = C.int(config.Mode)
 		if config.Create {
 			flags |= C.DB_CREATE
@@ -90,8 +101,8 @@ func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, e
 		}
 	}
 
+	chome := C.CString(home)
 	err = check(C.db_env_open(env.ptr, chome, flags, mode))
-
 	C.free(unsafe.Pointer(chome))
 
 	return
