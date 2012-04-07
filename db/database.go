@@ -236,15 +236,24 @@ func (db Database) unmarshalData(dbt *C.DBT, rec Record) (err error) {
 	return
 }
 
-// Store records in the database. The append flag makes sense only in
-// combination with a queue or records database and causes the keys of
-// the records to be set to fresh record numbers.
+// Store records in the database. In combination with a queue or
+// records database the append flags causes the keys of the records to
+// be set to fresh record numbers, for any other database it prevents
+// an existing record with the same key from being overwritten.
 func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error) {
-	var flags C.u_int32_t
+	dbtype, err := db.DatabaseType()
+	if err != nil {
+		return
+	}
+
+	var flags C.u_int32_t = 0
 	if append {
-		flags = C.DB_APPEND
-	} else {
-		flags = 0
+		switch dbtype {
+		case Records, Queue:
+			flags |= C.DB_APPEND
+		default:
+			flags |= C.DB_NOOVERWRITE
+		}
 	}
 
 	var key, data C.DBT
@@ -272,11 +281,9 @@ func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error)
 // combination with a queue database and causes the operation to wait
 // for and obtain the next enqueued record.
 func (db Database) Get(txn Transaction, consume bool, recs ...Record) (err error) {
-	var flags C.u_int32_t
+	var flags C.u_int32_t = 0
 	if consume {
-		flags = C.DB_CONSUME_WAIT
-	} else {
-		flags = 0
+		flags |= C.DB_CONSUME_WAIT
 	}
 
 	var key, data C.DBT
