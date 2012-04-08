@@ -26,7 +26,6 @@
 package db
 
 /*
- #cgo LDFLAGS: -ldb
  #include <db.h>
  static inline int db_env_txn_begin(DB_ENV *env, DB_TXN *parent, DB_TXN **txn, u_int32_t flags) {
  	return env->txn_begin(env, parent, txn, flags);
