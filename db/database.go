@@ -401,11 +401,14 @@ func (cur Cursor) Close() (err error) {
 // in combination with a BTree database.
 func (cur Cursor) Set(exact bool, rec Record) (err error) {
 	var key, data C.DBT
+	var flags C.u_int32_t = 0
 
 	if exact {
 		key.flags |= C.DB_DBT_READONLY
+		flags |= C.DB_SET
 	} else {
 		key.flags |= C.DB_DBT_USERMEM
+		flags |= C.DB_SET_RANGE
 	}
 
 	data.flags |= C.DB_DBT_REALLOC
@@ -418,7 +421,7 @@ func (cur Cursor) Set(exact bool, rec Record) (err error) {
 		return
 	}
 
-	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_SET))
+	err = check(C.db_cursor_get(cur.ptr, &key, &data, flags))
 	if err != nil {
 		return
 	}
