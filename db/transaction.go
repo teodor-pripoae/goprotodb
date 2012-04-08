@@ -51,11 +51,12 @@ const (
 
 // Transaction configuration.
 type TransactionConfig struct {
-	Parent      Transaction // Parent transaction.
-	Bulk        bool        // Optimize for bulk insertions.
-	NoWait      bool        // Fail instead of waiting for locks.
-	NoSync      bool        // Do not flush to log when committing.
-	WriteNoSync bool        // Do not flush log when committing.
+	Parent      Transaction    // Parent transaction.
+	Isolation   IsolationLevel // Transaction isolation level.
+	Bulk        bool           // Optimize for bulk insertions.
+	NoWait      bool           // Fail instead of waiting for locks.
+	NoSync      bool           // Do not flush to log when committing.
+	WriteNoSync bool           // Do not flush log when committing.
 }
 
 // Transaction in a database environment.
@@ -70,11 +71,17 @@ var NoTransaction = Transaction{ptr: nil}
 // automatically committed if the action doesn't return an error. If
 // an error occurs, the transaction is automatically aborted. Any
 // error is passed through to the caller.
-func (env Environment) WithTransaction(isolation IsolationLevel, config *TransactionConfig, action func(Transaction) error) (err error) {
-	var parent *C.DB_TXN = NoTransaction.ptr
-	var flags C.u_int32_t = C.u_int32_t(isolation)
+func (env Environment) WithTransaction(config *TransactionConfig, action func(Transaction) error) (err error) {
+	var parent *C.DB_TXN
+	var flags C.u_int32_t = C.DB_READ_COMMITTED
+
 	if config != nil {
-		parent = config.Parent.ptr
+		if config.Parent != NoTransaction {
+			parent = config.Parent.ptr
+		}
+		if config.Isolation != 0 {
+			flags = C.u_int32_t(config.Isolation)
+		}
 		if config.Bulk {
 			flags |= C.DB_TXN_BULK
 		}
@@ -91,15 +98,23 @@ func (env Environment) WithTransaction(isolation IsolationLevel, config *Transac
 
 	var txn Transaction
 	err = check(C.db_env_txn_begin(env.ptr, parent, &txn.ptr, flags))
-	if err != nil {
+	if err == nil {
+		defer func() {
+			if err != nil && txn.ptr != nil {
+				C.db_txn_abort(txn.ptr)
+				txn.ptr = nil
+			}
+		}()
+	} else {
 		return
 	}
 
 	err = action(txn)
 	if err == nil {
 		err = check(C.db_txn_commit(txn.ptr, 0))
+		txn.ptr = nil
 	} else {
-		C.db_txn_abort(txn.ptr)
+		return
 	}
 
 	return

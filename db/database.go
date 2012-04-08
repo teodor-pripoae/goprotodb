@@ -85,10 +85,13 @@ const (
 
 // Database configuration.
 type DatabaseConfig struct {
-	Mode            os.FileMode // File creation mode for the database.
-	Password        string      // Encryption password or an empty string.
-	ReadUncommitted bool        // Enable support for read-uncommitted isolation.
-	Snapshot        bool        // Enable support for snapshot isolation.
+	Create          bool         // Create the database, if necessary.
+	Mode            os.FileMode  // File creation mode for the database.
+	Password        string       // Encryption password or an empty string.
+	Name            string       // Identifier of the database inside the file.
+	Type            DatabaseType // Type of database to create
+	ReadUncommitted bool         // Enable support for read-uncommitted isolation.
+	Snapshot        bool         // Enable support for snapshot isolation.
 }
 
 // Database.
@@ -97,7 +100,7 @@ type Database struct {
 }
 
 // Open a database in the given file and environment.
-func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype DatabaseType, config *DatabaseConfig) (db Database, err error) {
+func OpenDatabase(env Environment, txn Transaction, file string, config *DatabaseConfig) (db Database, err error) {
 	err = check(C.db_create(&db.ptr, env.ptr, 0))
 	if err == nil {
 		defer func() {
@@ -110,17 +113,33 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 		return
 	}
 
-	var mode os.FileMode = 0664
+	var mode C.int = 0
 	var flags C.u_int32_t = C.DB_THREAD
+	var cfile, cpassword, cname *C.char
+	var dbtype C.DBTYPE = C.DB_UNKNOWN
+
+	if len(file) > 0 {
+		cfile = C.CString(file)
+		defer C.free(unsafe.Pointer(cfile))
+	}
+
 	if config != nil {
-		mode = config.Mode
+		if config.Create {
+			flags |= C.DB_CREATE
+		}
+		if config.Mode != 0 {
+			mode = C.int(config.Mode)
+		}
 		if len(config.Password) > 0 {
 			cpassword := C.CString(config.Password)
-			err = check(C.db_set_encrypt(db.ptr, cpassword, 0))
-			C.free(unsafe.Pointer(cpassword))
-			if err != nil {
-				return
-			}
+			defer C.free(unsafe.Pointer(cpassword))
+		}
+		if len(config.Name) > 0 {
+			cname = C.CString(config.Name)
+			defer C.free(unsafe.Pointer(cname))
+		}
+		if config.Type != 0 {
+			dbtype = C.DBTYPE(config.Type)
 		}
 		if config.ReadUncommitted {
 			flags |= C.DB_READ_UNCOMMITTED
@@ -129,25 +148,15 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 			flags |= C.DB_MULTIVERSION
 		}
 	}
-	if dbtype != Unknown {
-		flags |= C.DB_CREATE
+
+	if cpassword != nil {
+		err = check(C.db_set_encrypt(db.ptr, cpassword, 0))
+		if err != nil {
+			return
+		}
 	}
 
-	var cfile, cname *C.char
-	if len(file) > 0 {
-		cfile = C.CString(file)
-	}
-	if len(name) > 0 {
-		cname = C.CString(name)
-	}
-	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, C.DBTYPE(dbtype), flags, C.int(mode)))
-	C.free(unsafe.Pointer(cfile))
-	C.free(unsafe.Pointer(cname))
-
-	if err != nil {
-		C.db_close(db.ptr, 0)
-		db.ptr = nil
-	}
+	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, dbtype, flags, mode))
 
 	return
 }
@@ -386,22 +395,39 @@ func (cur Cursor) Close() (err error) {
 	return
 }
 
-// Retrieve the first record with matching key from the database.
-func (cur Cursor) Set(rec Record) (err error) {
+// Retrieve the first record with matching key from the database. If
+// exact is false, the first record with a key greater than or equal
+// to the given one is fetched; this operation mode only makes sense
+// in combination with a BTree database.
+func (cur Cursor) Set(exact bool, rec Record) (err error) {
 	var key, data C.DBT
 
-	key.flags |= C.DB_DBT_READONLY
+	if exact {
+		key.flags |= C.DB_DBT_READONLY
+	} else {
+		key.flags |= C.DB_DBT_USERMEM
+	}
+
 	data.flags |= C.DB_DBT_REALLOC
 	defer C.free(data.data)
 
 	err = cur.marshalKey(&key, rec)
-	if err != nil {
+	if err == nil {
+		key.ulen = key.size
+	} else {
 		return
 	}
 
 	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_SET))
 	if err != nil {
 		return
+	}
+
+	if !exact {
+		err = cur.unmarshalKey(&key, rec)
+		if err != nil {
+			return
+		}
 	}
 
 	err = cur.unmarshalData(&data, rec)
