@@ -113,7 +113,7 @@ func OpenEnvironment(home string, create bool, config *EnvironmentConfig) (env E
 	}
 
 	chome := C.CString(home)
-	err = check(C.db_env_open(env.ptr, chome, flags, C.int(mode & 0666)))
+	err = check(C.db_env_open(env.ptr, chome, flags, C.int(mode&0666)))
 	C.free(unsafe.Pointer(chome))
 
 	return
