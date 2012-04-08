@@ -53,6 +53,7 @@ const (
 	ErrSecondaryBad    = Errno(C.DB_SECONDARY_BAD)
 	ErrForeignConflict = Errno(C.DB_FOREIGN_CONFLICT)
 	ErrKeyExists       = Errno(C.DB_KEYEXIST)
+	ErrKeyEmpty        = Errno(C.DB_KEYEMPTY)
 	ErrNotFound        = Errno(C.DB_NOTFOUND)
 )
 
