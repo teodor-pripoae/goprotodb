@@ -416,7 +416,12 @@ func (cur Cursor) Set(exact bool, rec Record) (err error) {
 
 	err = cur.marshalKey(&key, rec)
 	if err == nil {
-		key.ulen = key.size
+		odata := key.data
+		defer func() {
+			if key.data != odata {
+				C.free(data.data)
+			}
+		}()
 	} else {
 		return
 	}
