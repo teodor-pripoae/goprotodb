@@ -267,20 +267,29 @@ func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error)
 		return
 	}
 
+	var key, data C.DBT
 	var flags C.u_int32_t = 0
+
 	if append {
+		key.flags |= C.DB_DBT_USERMEM
+
 		switch dbtype {
 		case Records, Queue:
 			flags |= C.DB_APPEND
 		default:
 			flags |= C.DB_NOOVERWRITE
 		}
+	} else {
+		key.flags |= C.DB_DBT_READONLY
 	}
 
-	var key, data C.DBT
+	data.flags |= C.DB_DBT_READONLY
+
 	for _, rec := range recs {
 		err = db.marshalKey(&key, rec)
-		if err != nil {
+		if err == nil {
+			key.ulen = key.size
+		} else {
 			return
 		}
 
@@ -302,15 +311,24 @@ func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error)
 // combination with a queue database and causes the operation to wait
 // for and obtain the next enqueued record.
 func (db Database) Get(txn Transaction, consume bool, recs ...Record) (err error) {
+	var key, data C.DBT
 	var flags C.u_int32_t = 0
+
 	if consume {
+		key.flags |= C.DB_DBT_USERMEM
 		flags |= C.DB_CONSUME_WAIT
+	} else {
+		key.flags |= C.DB_DBT_READONLY
 	}
 
-	var key, data C.DBT
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
+
 	for _, rec := range recs {
 		err = db.marshalKey(&key, rec)
-		if err != nil {
+		if err == nil {
+			key.ulen = key.size
+		} else {
 			return
 		}
 
@@ -331,6 +349,9 @@ func (db Database) Get(txn Transaction, consume bool, recs ...Record) (err error
 // Delete records from the database.
 func (db Database) Del(txn Transaction, recs ...Record) (err error) {
 	var key C.DBT
+
+	key.flags |= C.DB_DBT_READONLY
+
 	for _, rec := range recs {
 		err = db.marshalKey(&key, rec)
 		if err != nil {
@@ -369,6 +390,10 @@ func (cur Cursor) Close() (err error) {
 func (cur Cursor) Set(rec Record) (err error) {
 	var key, data C.DBT
 
+	key.flags |= C.DB_DBT_READONLY
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
+
 	err = cur.marshalKey(&key, rec)
 	if err != nil {
 		return
@@ -387,6 +412,11 @@ func (cur Cursor) Set(rec Record) (err error) {
 // Retrieve the first record of the database.
 func (cur Cursor) First(rec Record) (err error) {
 	var key, data C.DBT
+
+	key.flags |= C.DB_DBT_REALLOC
+	defer C.free(key.data)
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
 
 	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_FIRST))
 	if err != nil {
@@ -407,6 +437,11 @@ func (cur Cursor) First(rec Record) (err error) {
 func (cur Cursor) Next(rec Record) (err error) {
 	var key, data C.DBT
 
+	key.flags |= C.DB_DBT_REALLOC
+	defer C.free(key.data)
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
+
 	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_NEXT))
 	if err != nil {
 		return
@@ -426,6 +461,11 @@ func (cur Cursor) Next(rec Record) (err error) {
 func (cur Cursor) Last(rec Record) (err error) {
 	var key, data C.DBT
 
+	key.flags |= C.DB_DBT_REALLOC
+	defer C.free(key.data)
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
+
 	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_LAST))
 	if err != nil {
 		return
@@ -444,6 +484,11 @@ func (cur Cursor) Last(rec Record) (err error) {
 // Retrieve the previous record from the cursor.
 func (cur Cursor) Prev(rec Record) (err error) {
 	var key, data C.DBT
+
+	key.flags |= C.DB_DBT_REALLOC
+	defer C.free(key.data)
+	data.flags |= C.DB_DBT_REALLOC
+	defer C.free(data.data)
 
 	err = check(C.db_cursor_get(cur.ptr, &key, &data, C.DB_PREV))
 	if err != nil {
