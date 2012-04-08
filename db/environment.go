@@ -69,7 +69,7 @@ func OpenEnvironment(home string, create bool, config *EnvironmentConfig) (env E
 	err = check(C.db_env_create(&env.ptr, 0))
 	if err == nil {
 		defer func() {
-			if err != nil {
+			if err != nil && env.ptr != nil {
 				C.db_env_close(env.ptr, 0)
 				env.ptr = nil
 			}

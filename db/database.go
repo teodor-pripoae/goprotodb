@@ -101,7 +101,7 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 	err = check(C.db_create(&db.ptr, env.ptr, 0))
 	if err == nil {
 		defer func() {
-			if err != nil {
+			if err != nil && db.ptr != nil {
 				C.db_close(db.ptr, 0)
 				db.ptr = nil
 			}
