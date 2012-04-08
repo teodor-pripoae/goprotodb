@@ -76,11 +76,11 @@ type DatabaseType int
 
 // Available database types.
 const (
-	BTree   = DatabaseType(C.DB_BTREE)
-	Hash    = DatabaseType(C.DB_HASH)
-	Records = DatabaseType(C.DB_RECNO)
-	Queue   = DatabaseType(C.DB_QUEUE)
-	Unknown = DatabaseType(C.DB_UNKNOWN)
+	BTree    = DatabaseType(C.DB_BTREE)
+	Hash     = DatabaseType(C.DB_HASH)
+	Numbered = DatabaseType(C.DB_RECNO)
+	Queue    = DatabaseType(C.DB_QUEUE)
+	Unknown  = DatabaseType(C.DB_UNKNOWN)
 )
 
 // Database configuration.
@@ -205,7 +205,7 @@ func (db Database) marshalKey(dbt *C.DBT, rec Record) (err error) {
 	}
 
 	switch dbtype {
-	case Records, Queue:
+	case Numbered, Queue:
 		dbt.data = unsafe.Pointer(rec.RecordKey().(*uint32))
 		dbt.size = 4
 
@@ -237,7 +237,7 @@ func (db Database) unmarshalKey(dbt *C.DBT, rec Record) (err error) {
 	}
 
 	switch dbtype {
-	case Records, Queue:
+	case Numbered, Queue:
 		if dbt.size == 4 {
 			*rec.RecordKey().(*uint32) = *(*uint32)(dbt.data)
 		} else {
@@ -274,7 +274,7 @@ func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error)
 		key.flags |= C.DB_DBT_USERMEM
 
 		switch dbtype {
-		case Records, Queue:
+		case Numbered, Queue:
 			flags |= C.DB_APPEND
 		default:
 			flags |= C.DB_NOOVERWRITE
