@@ -407,7 +407,7 @@ func (cur Cursor) Set(exact bool, rec Record) (err error) {
 		key.flags |= C.DB_DBT_READONLY
 		flags |= C.DB_SET
 	} else {
-		key.flags |= C.DB_DBT_USERMEM
+		key.flags |= C.DB_DBT_MALLOC
 		flags |= C.DB_SET_RANGE
 	}
 
