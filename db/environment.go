@@ -48,9 +48,8 @@ import "C"
 
 // Database environment configuration.
 type EnvironmentConfig struct {
+	Mode          os.FileMode // Directory creation mode for the environment. The executable bits are cleared to derive the file creation mode.
 	Password      string      // Encryption password or an empty string.
-	Mode          os.FileMode // File creation mode for the environment.
-	Create        bool        // Create the environment, if necessary.
 	Recover       bool        // Run recovery on the environment, if necessary.
 	Transactional bool        // Enable transactions in the environment.
 	NoSync        bool        // Do not flush to log when committing.
@@ -66,15 +65,23 @@ type Environment struct {
 var NoEnvironment = Environment{ptr: nil}
 
 // Open an environment at the given home path.
-func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, err error) {
+func OpenEnvironment(home string, create bool, config *EnvironmentConfig) (env Environment, err error) {
 	err = check(C.db_env_create(&env.ptr, 0))
-	if err != nil {
+	if err == nil {
+		defer func() {
+			if err != nil {
+				C.db_env_close(env.ptr, 0)
+				env.ptr = nil
+			}
+		}()
+	} else {
 		return
 	}
 
+	var mode os.FileMode = 0775
 	var flags C.u_int32_t = C.DB_THREAD
-	var mode C.int = 0
 	if config != nil {
+		mode = config.Mode
 		if len(config.Password) > 0 {
 			cpassword := C.CString(config.Password)
 			err = check(C.db_env_set_encrypt(env.ptr, cpassword, 0))
@@ -82,10 +89,6 @@ func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, e
 			if err != nil {
 				return
 			}
-		}
-		mode = C.int(config.Mode)
-		if config.Create {
-			flags |= C.DB_CREATE
 		}
 		if config.Recover {
 			flags |= C.DB_REGISTER | C.DB_FAILCHK | C.DB_RECOVER
@@ -100,9 +103,17 @@ func OpenEnvironment(home string, config *EnvironmentConfig) (env Environment, e
 			flags |= C.DB_TXN_WRITE_NOSYNC
 		}
 	}
+	if create {
+		err = os.MkdirAll(home, mode)
+		if err == nil {
+			flags |= C.DB_CREATE
+		} else {
+			return
+		}
+	}
 
 	chome := C.CString(home)
-	err = check(C.db_env_open(env.ptr, chome, flags, mode))
+	err = check(C.db_env_open(env.ptr, chome, flags, C.int(mode & 0666)))
 	C.free(unsafe.Pointer(chome))
 
 	return

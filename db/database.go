@@ -85,9 +85,8 @@ const (
 
 // Database configuration.
 type DatabaseConfig struct {
+	Mode            os.FileMode // File creation mode for the database.
 	Password        string      // Encryption password or an empty string.
-	Mode            os.FileMode // File creation mode for the environment.
-	Create          bool        // Create the database, if necessary.
 	ReadUncommitted bool        // Enable support for read-uncommitted isolation.
 	Snapshot        bool        // Enable support for snapshot isolation.
 }
@@ -100,13 +99,21 @@ type Database struct {
 // Open a database in the given file and environment.
 func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype DatabaseType, config *DatabaseConfig) (db Database, err error) {
 	err = check(C.db_create(&db.ptr, env.ptr, 0))
-	if err != nil {
+	if err == nil {
+		defer func() {
+			if err != nil {
+				C.db_close(db.ptr, 0)
+				db.ptr = nil
+			}
+		}()
+	} else {
 		return
 	}
 
+	var mode os.FileMode = 0664
 	var flags C.u_int32_t = C.DB_THREAD
-	var mode C.int = 0
 	if config != nil {
+		mode = config.Mode
 		if len(config.Password) > 0 {
 			cpassword := C.CString(config.Password)
 			err = check(C.db_set_encrypt(db.ptr, cpassword, 0))
@@ -115,16 +122,15 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 				return
 			}
 		}
-		mode = C.int(config.Mode)
-		if config.Create {
-			flags |= C.DB_CREATE
-		}
 		if config.ReadUncommitted {
 			flags |= C.DB_READ_UNCOMMITTED
 		}
 		if config.Snapshot {
 			flags |= C.DB_MULTIVERSION
 		}
+	}
+	if dbtype != Unknown {
+		flags |= C.DB_CREATE
 	}
 
 	var cfile, cname *C.char
@@ -134,9 +140,14 @@ func OpenDatabase(env Environment, txn Transaction, file, name string, dbtype Da
 	if len(name) > 0 {
 		cname = C.CString(name)
 	}
-	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, C.DBTYPE(dbtype), flags, mode))
+	err = check(C.db_open(db.ptr, txn.ptr, cfile, cname, C.DBTYPE(dbtype), flags, C.int(mode)))
 	C.free(unsafe.Pointer(cfile))
 	C.free(unsafe.Pointer(cname))
+
+	if err != nil {
+		C.db_close(db.ptr, 0)
+		db.ptr = nil
+	}
 
 	return
 }
