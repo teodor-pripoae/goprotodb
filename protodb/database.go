@@ -315,15 +315,15 @@ func (db Database) Put(txn Transaction, append bool, recs ...interface{}) (err e
 	data.flags |= C.DB_DBT_READONLY
 
 	for _, rec := range recs {
+		err = db.marshalData(&data, rec)
+		if err != nil {
+			return
+		}
+
 		err = db.marshalKey(&key, rec)
 		if err == nil {
 			key.ulen = key.size
 		} else {
-			return
-		}
-
-		err = db.marshalData(&data, rec)
-		if err != nil {
 			return
 		}
 
