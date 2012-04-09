@@ -23,34 +23,5 @@
  * SOFTWARE.
  */
 
-package db
-
-import "code.google.com/p/goprotobuf/proto"
-
-func (rec *TestRecord) RecordKey() interface{} {
-	if rec.Key == nil {
-		rec.Key = &TestRecord_Key{Val: proto.String("")}
-	}
-	return rec.Key
-}
-
-func (rec *TestRecord) RecordWithoutKey() interface{} {
-	dup := new(TestRecord)
-	*dup = *rec
-	dup.Key = nil
-	return dup
-}
-
-func (rec *NumberedTestRecord) RecordKey() interface{} {
-	if rec.Key == nil {
-		rec.Key = proto.Uint32(0)
-	}
-	return rec.Key
-}
-
-func (rec *NumberedTestRecord) RecordWithoutKey() interface{} {
-	dup := new(NumberedTestRecord)
-	*dup = *rec
-	dup.Key = nil
-	return dup
-}
+// Berkeley DB storage of protobuf encoded values.
+package protodb

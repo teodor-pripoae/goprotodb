@@ -23,50 +23,34 @@
  * SOFTWARE.
  */
 
-package db
+package protodb
 
-import (
-	"code.google.com/p/goprotobuf/proto"
-	"testing"
-)
+import "code.google.com/p/goprotobuf/proto"
 
-func TestPutGetDel(t *testing.T) {
-	withEnvDb(t, Numbered, func(env Environment, db Database) {
-		rec0 := &NumberedTestRecord{
-			Val: proto.String("blubb"),
-		}
+func (rec *TestRecord) RecordKey() interface{} {
+	if rec.Key == nil {
+		rec.Key = &TestRecord_Key{Val: proto.String("")}
+	}
+	return rec.Key
+}
 
-		err := env.WithTransaction(nil, func(txn Transaction) error {
-			return db.Put(txn, true, rec0)
-		})
-		if err != nil {
-			t.Error("Put failed:", err)
-		}
+func (rec *TestRecord) RecordWithoutKey() interface{} {
+	dup := new(TestRecord)
+	*dup = *rec
+	dup.Key = nil
+	return dup
+}
 
-		rec1 := &NumberedTestRecord{Key: rec0.Key}
+func (rec *NumberedTestRecord) RecordKey() interface{} {
+	if rec.Key == nil {
+		rec.Key = proto.Uint32(0)
+	}
+	return rec.Key
+}
 
-		err = env.WithTransaction(nil, func(txn Transaction) (err error) {
-			err = db.Del(txn, rec0)
-			if err != nil {
-				return
-			}
-
-			err = db.Get(txn, false, rec1)
-
-			return
-		})
-		if err == nil {
-			t.Error("Illegal del+get succeeded:", rec1)
-		}
-
-		err = env.WithTransaction(nil, func(txn Transaction) error {
-			return db.Get(txn, false, rec1)
-		})
-		if err != nil {
-			t.Error("Get failed:", err)
-		}
-		if *rec0.Val != *rec1.Val {
-			t.Error("Retrieved value mismatch:", rec0, rec1)
-		}
-	})
+func (rec *NumberedTestRecord) RecordWithoutKey() interface{} {
+	dup := new(NumberedTestRecord)
+	*dup = *rec
+	dup.Key = nil
+	return dup
 }

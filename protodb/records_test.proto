@@ -1,4 +1,4 @@
-/* -*- mode: Go; coding: utf-8; -*-
+/* -*- mode: Protobuf; coding: utf-8; -*-
  * This file is part of goprotodb.
  * Copyright (C) 2012 Thomas Chust <chust@web.de>.  All rights reserved.
  *
@@ -23,5 +23,18 @@
  * SOFTWARE.
  */
 
-// Berkeley DB storage of protobuf encoded values.
-package db
+package protodb;
+
+message TestRecord {
+  message Key {
+    required string val = 1;
+  }
+
+  optional Key key = 1;
+  optional string val = 2;
+}
+
+message NumberedTestRecord {
+  optional fixed32 key = 1;
+  optional string val = 2;
+}

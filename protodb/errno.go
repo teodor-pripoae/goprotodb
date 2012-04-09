@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-package db
+package protodb
 
 /*
  #cgo LDFLAGS: -ldb

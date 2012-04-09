@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-package db
+package protodb
 
 import (
 	"code.google.com/p/goprotobuf/proto"
