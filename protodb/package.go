@@ -23,5 +23,5 @@
  * SOFTWARE.
  */
 
-// Berkeley DB storage of protobuf encoded values.
+// A binding to Berkeley DB storing Protobuf encoded values.
 package protodb

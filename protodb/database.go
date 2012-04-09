@@ -180,7 +180,7 @@ type Record interface {
 	// Obtain a pointer to the record key. If the record currently
 	// has no key, it must be allocated. The result must be
 	// serializable using protobuf or, for storage in queue and
-	// records databases, a *uint32.
+	// numbered databases, a *uint32.
 	RecordKey() interface{}
 
 	// Obtain a pointer to a copy of the record without its
@@ -267,9 +267,10 @@ func (db Database) unmarshalData(dbt *C.DBT, rec Record) (err error) {
 }
 
 // Store records in the database. In combination with a queue or
-// records database the append flags causes the keys of the records to
-// be set to fresh record numbers, for any other database it prevents
-// an existing record with the same key from being overwritten.
+// numbered database the append flags causes the keys of the records
+// to be set to fresh record numbers, for any other database it
+// prevents an existing record with the same key from being
+// overwritten.
 func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error) {
 	dbtype, err := db.DatabaseType()
 	if err != nil {
@@ -398,7 +399,7 @@ func (cur Cursor) Close() (err error) {
 // Retrieve the first record with matching key from the database. If
 // exact is false, the first record with a key greater than or equal
 // to the given one is fetched; this operation mode only makes sense
-// in combination with a BTree database.
+// in combination with a B-tree database.
 func (cur Cursor) Set(exact bool, rec Record) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
