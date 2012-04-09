@@ -169,7 +169,7 @@ func (db Database) Close() (err error) {
 }
 
 // Get the type of the database.
-func (db Database) DatabaseType() (dbtype DatabaseType, err error) {
+func (db Database) Type() (dbtype DatabaseType, err error) {
 	var cdbtype C.DBTYPE
 	err = check(C.db_get_type(db.ptr, &cdbtype))
 	dbtype = DatabaseType(cdbtype)
@@ -225,7 +225,7 @@ func marshalDBT(dbt *C.DBT, val interface{}) (err error) {
 func (db Database) marshalKey(dbt *C.DBT, rec interface{}) (err error) {
 	key := recordKey(rec)
 
-	dbtype, err := db.DatabaseType()
+	dbtype, err := db.Type()
 	if err != nil {
 		return
 	}
@@ -259,7 +259,7 @@ func unmarshalDBT(dbt *C.DBT, val interface{}) (err error) {
 func (db Database) unmarshalKey(dbt *C.DBT, rec interface{}) (err error) {
 	key := recordKey(rec)
 
-	dbtype, err := db.DatabaseType()
+	dbtype, err := db.Type()
 	if err != nil {
 		return
 	}
@@ -291,7 +291,7 @@ func (db Database) unmarshalData(dbt *C.DBT, rec interface{}) (err error) {
 // prevents an existing record with the same key from being
 // overwritten.
 func (db Database) Put(txn Transaction, append bool, recs ...interface{}) (err error) {
-	dbtype, err := db.DatabaseType()
+	dbtype, err := db.Type()
 	if err != nil {
 		return
 	}
