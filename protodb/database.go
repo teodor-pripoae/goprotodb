@@ -398,13 +398,13 @@ func (db Database) Del(txn Transaction, recs ...interface{}) (err error) {
 
 // Database cursor.
 type Cursor struct {
-	Database
+	db Database
 	ptr *C.DBC
 }
 
 // Obtain a cursor over the database.
 func (db Database) Cursor(txn Transaction) (cur Cursor, err error) {
-	cur.Database = db
+	cur.db = db
 	err = check(C.db_cursor(db.ptr, txn.ptr, &cur.ptr, 0))
 	return
 }
@@ -434,7 +434,7 @@ func (cur Cursor) Set(rec interface{}, exact bool) (err error) {
 	data.flags |= C.DB_DBT_REALLOC
 	defer C.free(data.data)
 
-	err = cur.marshalKey(&key, rec)
+	err = cur.db.marshalKey(&key, rec)
 	if err == nil {
 		odata := key.data
 		defer func() {
@@ -452,13 +452,13 @@ func (cur Cursor) Set(rec interface{}, exact bool) (err error) {
 	}
 
 	if !exact {
-		err = cur.unmarshalKey(&key, rec)
+		err = cur.db.unmarshalKey(&key, rec)
 		if err != nil {
 			return
 		}
 	}
 
-	err = cur.unmarshalData(&data, rec)
+	err = cur.db.unmarshalData(&data, rec)
 
 	return
 }
@@ -477,12 +477,12 @@ func (cur Cursor) First(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.unmarshalData(&data, rec)
+	err = cur.db.unmarshalData(&data, rec)
 
 	return
 }
@@ -501,12 +501,12 @@ func (cur Cursor) Next(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.unmarshalData(&data, rec)
+	err = cur.db.unmarshalData(&data, rec)
 
 	return
 }
@@ -525,12 +525,12 @@ func (cur Cursor) Last(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.unmarshalData(&data, rec)
+	err = cur.db.unmarshalData(&data, rec)
 
 	return
 }
@@ -549,12 +549,12 @@ func (cur Cursor) Prev(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.unmarshalData(&data, rec)
+	err = cur.db.unmarshalData(&data, rec)
 
 	return
 }
