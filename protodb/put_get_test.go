@@ -57,11 +57,13 @@ func TestPutGet(t *testing.T) {
 			t.Error("Retrieved value mismatch:", rec0, rec1)
 		}
 
-		rec1 = &TestRecord{}
+		rec1 = &TestRecord{
+			Key: &TestRecord_Key{Val: proto.String("foobar")},
+		}
 
 		err = db.Get(NoTransaction, false, rec1)
 		if err != ErrNotFound {
-			t.Error("Illegal get succeeded:", rec1)
+			t.Error("Illegal get succeeded:", rec1, err)
 		}
 
 		return

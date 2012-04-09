@@ -28,6 +28,7 @@ package protodb
 import (
 	"code.google.com/p/goprotobuf/proto"
 	"os"
+	"reflect"
 	"unsafe"
 )
 
@@ -175,17 +176,31 @@ func (db Database) DatabaseType() (dbtype DatabaseType, err error) {
 	return
 }
 
-// Interface for storable records.
-type Record interface {
-	// Obtain a pointer to the record key. If the record currently
-	// has no key, it must be allocated. The result must be
-	// serializable using protobuf or, for storage in queue and
-	// numbered databases, a *uint32.
-	RecordKey() interface{}
+// Extract the key from a record.
+func recordKey(rec interface{}) interface{} {
+	key := reflect.ValueOf(rec).Elem().FieldByName("Key")
+	if key.IsNil() {
+		key.Set(reflect.New(key.Type().Elem()))
+	}
 
-	// Obtain a pointer to a copy of the record without its
-	// key. The result must be serializable using protobuf.
-	RecordWithoutKey() interface{}
+	return key.Interface()
+}
+
+// Obtains a record without its key.
+func recordWithoutKey(rec interface{}) interface{} {
+	data := reflect.ValueOf(rec)
+
+	if !data.Elem().FieldByName("Key").IsNil() {
+		clone := reflect.New(data.Type().Elem())
+		clone.Elem().Set(data.Elem())
+
+		key := clone.Elem().FieldByName("Key")
+		key.Set(reflect.Zero(key.Type()))
+
+		data = clone
+	}
+
+	return data.Interface()
 }
 
 // Marshal a protobuf struct into a database thang.
@@ -207,7 +222,9 @@ func marshalDBT(dbt *C.DBT, val interface{}) (err error) {
 }
 
 // Marshal the key of a record into a database thang.
-func (db Database) marshalKey(dbt *C.DBT, rec Record) (err error) {
+func (db Database) marshalKey(dbt *C.DBT, rec interface{}) (err error) {
+	key := recordKey(rec)
+
 	dbtype, err := db.DatabaseType()
 	if err != nil {
 		return
@@ -215,19 +232,19 @@ func (db Database) marshalKey(dbt *C.DBT, rec Record) (err error) {
 
 	switch dbtype {
 	case Numbered, Queue:
-		dbt.data = unsafe.Pointer(rec.RecordKey().(*uint32))
+		dbt.data = unsafe.Pointer(key.(*uint32))
 		dbt.size = 4
 
 	default:
-		err = marshalDBT(dbt, rec.RecordKey())
+		err = marshalDBT(dbt, key)
 	}
 
 	return
 }
 
 // Marshal the data of a record into a database thang.
-func (db Database) marshalData(dbt *C.DBT, rec Record) (err error) {
-	err = marshalDBT(dbt, rec.RecordWithoutKey())
+func (db Database) marshalData(dbt *C.DBT, rec interface{}) (err error) {
+	err = marshalDBT(dbt, recordWithoutKey(rec))
 	return
 }
 
@@ -239,7 +256,9 @@ func unmarshalDBT(dbt *C.DBT, val interface{}) (err error) {
 }
 
 // Unmarshal the key of a record from a database thang.
-func (db Database) unmarshalKey(dbt *C.DBT, rec Record) (err error) {
+func (db Database) unmarshalKey(dbt *C.DBT, rec interface{}) (err error) {
+	key := recordKey(rec)
+
 	dbtype, err := db.DatabaseType()
 	if err != nil {
 		return
@@ -248,20 +267,20 @@ func (db Database) unmarshalKey(dbt *C.DBT, rec Record) (err error) {
 	switch dbtype {
 	case Numbered, Queue:
 		if dbt.size == 4 {
-			*rec.RecordKey().(*uint32) = *(*uint32)(dbt.data)
+			*key.(*uint32) = *(*uint32)(dbt.data)
 		} else {
 			panic("key size does not match record number data type")
 		}
 
 	default:
-		err = unmarshalDBT(dbt, rec.RecordKey())
+		err = unmarshalDBT(dbt, key)
 	}
 
 	return
 }
 
 // Unmarshal the data of a record from a database thang.
-func (db Database) unmarshalData(dbt *C.DBT, rec Record) (err error) {
+func (db Database) unmarshalData(dbt *C.DBT, rec interface{}) (err error) {
 	err = unmarshalDBT(dbt, rec)
 	return
 }
@@ -271,7 +290,7 @@ func (db Database) unmarshalData(dbt *C.DBT, rec Record) (err error) {
 // to be set to fresh record numbers, for any other database it
 // prevents an existing record with the same key from being
 // overwritten.
-func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error) {
+func (db Database) Put(txn Transaction, append bool, recs ...interface{}) (err error) {
 	dbtype, err := db.DatabaseType()
 	if err != nil {
 		return
@@ -320,7 +339,7 @@ func (db Database) Put(txn Transaction, append bool, recs ...Record) (err error)
 // Get records from the database. The consume flag makes sense only in
 // combination with a queue database and causes the operation to wait
 // for and obtain the next enqueued record.
-func (db Database) Get(txn Transaction, consume bool, recs ...Record) (err error) {
+func (db Database) Get(txn Transaction, consume bool, recs ...interface{}) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
 
@@ -357,7 +376,7 @@ func (db Database) Get(txn Transaction, consume bool, recs ...Record) (err error
 }
 
 // Delete records from the database.
-func (db Database) Del(txn Transaction, recs ...Record) (err error) {
+func (db Database) Del(txn Transaction, recs ...interface{}) (err error) {
 	var key C.DBT
 
 	key.flags |= C.DB_DBT_READONLY
@@ -400,7 +419,7 @@ func (cur Cursor) Close() (err error) {
 // exact is false, the first record with a key greater than or equal
 // to the given one is fetched; this operation mode only makes sense
 // in combination with a B-tree database.
-func (cur Cursor) Set(rec Record, exact bool) (err error) {
+func (cur Cursor) Set(rec interface{}, exact bool) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
 
@@ -445,7 +464,7 @@ func (cur Cursor) Set(rec Record, exact bool) (err error) {
 }
 
 // Retrieve the first record of the database.
-func (cur Cursor) First(rec Record) (err error) {
+func (cur Cursor) First(rec interface{}) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -469,7 +488,7 @@ func (cur Cursor) First(rec Record) (err error) {
 }
 
 // Retrieve the next record from the cursor.
-func (cur Cursor) Next(rec Record) (err error) {
+func (cur Cursor) Next(rec interface{}) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -493,7 +512,7 @@ func (cur Cursor) Next(rec Record) (err error) {
 }
 
 // Retrieve the last record of the database.
-func (cur Cursor) Last(rec Record) (err error) {
+func (cur Cursor) Last(rec interface{}) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -517,7 +536,7 @@ func (cur Cursor) Last(rec Record) (err error) {
 }
 
 // Retrieve the previous record from the cursor.
-func (cur Cursor) Prev(rec Record) (err error) {
+func (cur Cursor) Prev(rec interface{}) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC

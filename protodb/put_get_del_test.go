@@ -55,8 +55,8 @@ func TestPutGetDel(t *testing.T) {
 
 			return
 		})
-		if err == nil {
-			t.Error("Illegal del+get succeeded:", rec1)
+		if err != ErrKeyEmpty {
+			t.Error("Illegal del+get succeeded:", rec1, err)
 		}
 
 		err = env.WithTransaction(nil, func(txn Transaction) error {

@@ -23,5 +23,12 @@
  * SOFTWARE.
  */
 
-// A binding to Berkeley DB storing Protobuf encoded values.
+// A binding to Berkeley DB storing records encoded as Protocol
+// Buffers.
+//
+// The records you use should have a single optional field called key
+// that holds the key for the record; this field can be of any
+// protobuf serializable message type or, if you plan to store the
+// records in a numbered or queue database, it should hold an unsigned
+// 32-bit integer.
 package protodb

@@ -60,8 +60,8 @@ func TestCursor(t *testing.T) {
 		}
 
 		err = cur.Set(rec, true)
-		if err == nil {
-			t.Error("Illegal cursor set succeeded:", rec)
+		if err != ErrNotFound {
+			t.Error("Illegal cursor set succeeded:", rec, err)
 		}
 
 		err = cur.Set(rec, false)

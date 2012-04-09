@@ -31,10 +31,10 @@ message TestRecord {
   }
 
   optional Key key = 1;
-  optional string val = 2;
+  required string val = 2;
 }
 
 message NumberedTestRecord {
   optional fixed32 key = 1;
-  optional string val = 2;
+  required string val = 2;
 }
