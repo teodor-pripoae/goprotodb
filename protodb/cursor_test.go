@@ -59,12 +59,12 @@ func TestCursor(t *testing.T) {
 			Key: &TestRecord_Key{Val: proto.String("cadr")},
 		}
 
-		err = cur.Set(true, rec)
+		err = cur.Set(rec, true)
 		if err == nil {
 			t.Error("Illegal cursor set succeeded:", rec)
 		}
 
-		err = cur.Set(false, rec)
+		err = cur.Set(rec, false)
 		if err != nil {
 			t.Error("Cursor set failed:", err)
 		}

@@ -400,7 +400,7 @@ func (cur Cursor) Close() (err error) {
 // exact is false, the first record with a key greater than or equal
 // to the given one is fetched; this operation mode only makes sense
 // in combination with a B-tree database.
-func (cur Cursor) Set(exact bool, rec Record) (err error) {
+func (cur Cursor) Set(rec Record, exact bool) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
 
