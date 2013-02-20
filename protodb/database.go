@@ -177,7 +177,7 @@ func (db Database) Type() (dbtype DatabaseType, err error) {
 }
 
 // Extract the key from a record.
-func recordKey(rec interface{}) interface{} {
+func recordKey(rec proto.Message) interface{} {
 	key := reflect.ValueOf(rec).Elem().FieldByName("Key")
 	if key.IsNil() {
 		key.Set(reflect.New(key.Type().Elem()))
@@ -186,8 +186,8 @@ func recordKey(rec interface{}) interface{} {
 	return key.Interface()
 }
 
-// Obtains a record without its key.
-func recordWithoutKey(rec interface{}) interface{} {
+// Obtains a shallow copy of a record without its key.
+func recordWithoutKey(rec proto.Message) proto.Message {
 	data := reflect.ValueOf(rec)
 
 	if !data.Elem().FieldByName("Key").IsNil() {
@@ -200,11 +200,11 @@ func recordWithoutKey(rec interface{}) interface{} {
 		data = clone
 	}
 
-	return data.Interface()
+	return data.Interface().(proto.Message)
 }
 
 // Marshal a protobuf struct into a database thang.
-func marshalDBT(dbt *C.DBT, val interface{}) (err error) {
+func marshalDBT(dbt *C.DBT, val proto.Message) (err error) {
 	buf, err := proto.Marshal(val)
 	if err != nil {
 		return
@@ -222,7 +222,7 @@ func marshalDBT(dbt *C.DBT, val interface{}) (err error) {
 }
 
 // Marshal the key of a record into a database thang.
-func (db Database) marshalKey(dbt *C.DBT, rec interface{}) (err error) {
+func (db Database) marshalKey(dbt *C.DBT, rec proto.Message) (err error) {
 	key := recordKey(rec)
 
 	dbtype, err := db.Type()
@@ -236,27 +236,27 @@ func (db Database) marshalKey(dbt *C.DBT, rec interface{}) (err error) {
 		dbt.size = 4
 
 	default:
-		err = marshalDBT(dbt, key)
+		err = marshalDBT(dbt, key.(proto.Message))
 	}
 
 	return
 }
 
 // Marshal the data of a record into a database thang.
-func (db Database) marshalData(dbt *C.DBT, rec interface{}) (err error) {
+func (db Database) marshalData(dbt *C.DBT, rec proto.Message) (err error) {
 	err = marshalDBT(dbt, recordWithoutKey(rec))
 	return
 }
 
 // Unmarshal a protobuf struct from a database thang.
-func unmarshalDBT(dbt *C.DBT, val interface{}) (err error) {
+func unmarshalDBT(dbt *C.DBT, val proto.Message) (err error) {
 	buf := C.GoBytes(dbt.data, C.int(dbt.size))
 	err = proto.Unmarshal(buf, val)
 	return
 }
 
 // Unmarshal the key of a record from a database thang.
-func (db Database) unmarshalKey(dbt *C.DBT, rec interface{}) (err error) {
+func (db Database) unmarshalKey(dbt *C.DBT, rec proto.Message) (err error) {
 	key := recordKey(rec)
 
 	dbtype, err := db.Type()
@@ -273,14 +273,14 @@ func (db Database) unmarshalKey(dbt *C.DBT, rec interface{}) (err error) {
 		}
 
 	default:
-		err = unmarshalDBT(dbt, key)
+		err = unmarshalDBT(dbt, key.(proto.Message))
 	}
 
 	return
 }
 
 // Unmarshal the data of a record from a database thang.
-func (db Database) unmarshalData(dbt *C.DBT, rec interface{}) (err error) {
+func (db Database) unmarshalData(dbt *C.DBT, rec proto.Message) (err error) {
 	err = unmarshalDBT(dbt, rec)
 	return
 }
@@ -290,7 +290,7 @@ func (db Database) unmarshalData(dbt *C.DBT, rec interface{}) (err error) {
 // to be set to fresh record numbers, for any other database it
 // prevents an existing record with the same key from being
 // overwritten.
-func (db Database) Put(txn Transaction, append bool, recs ...interface{}) (err error) {
+func (db Database) Put(txn Transaction, append bool, recs ...proto.Message) (err error) {
 	dbtype, err := db.Type()
 	if err != nil {
 		return
@@ -339,7 +339,7 @@ func (db Database) Put(txn Transaction, append bool, recs ...interface{}) (err e
 // Get records from the database. The consume flag makes sense only in
 // combination with a queue database and causes the operation to wait
 // for and obtain the next enqueued record.
-func (db Database) Get(txn Transaction, consume bool, recs ...interface{}) (err error) {
+func (db Database) Get(txn Transaction, consume bool, recs ...proto.Message) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
 
@@ -370,13 +370,18 @@ func (db Database) Get(txn Transaction, consume bool, recs ...interface{}) (err 
 		if err != nil {
 			return
 		}
+		
+		err = db.unmarshalKey(&key, rec)
+		if err != nil {
+			return
+		}
 	}
 
 	return
 }
 
 // Delete records from the database.
-func (db Database) Del(txn Transaction, recs ...interface{}) (err error) {
+func (db Database) Del(txn Transaction, recs ...proto.Message) (err error) {
 	var key C.DBT
 
 	key.flags |= C.DB_DBT_READONLY
@@ -419,7 +424,7 @@ func (cur Cursor) Close() (err error) {
 // exact is false, the first record with a key greater than or equal
 // to the given one is fetched; this operation mode only makes sense
 // in combination with a B-tree database.
-func (cur Cursor) Set(rec interface{}, exact bool) (err error) {
+func (cur Cursor) Set(rec proto.Message, exact bool) (err error) {
 	var key, data C.DBT
 	var flags C.u_int32_t = 0
 
@@ -451,20 +456,17 @@ func (cur Cursor) Set(rec interface{}, exact bool) (err error) {
 		return
 	}
 
-	if !exact {
-		err = cur.db.unmarshalKey(&key, rec)
-		if err != nil {
-			return
-		}
+	err = cur.db.unmarshalData(&data, rec)
+	if err != nil {
+		return
 	}
 
-	err = cur.db.unmarshalData(&data, rec)
-
+	err = cur.db.unmarshalKey(&key, rec)
 	return
 }
 
 // Retrieve the first record of the database.
-func (cur Cursor) First(rec interface{}) (err error) {
+func (cur Cursor) First(rec proto.Message) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -477,18 +479,18 @@ func (cur Cursor) First(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.db.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalData(&data, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.db.unmarshalData(&data, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 
 	return
 }
 
 // Retrieve the next record from the cursor.
-func (cur Cursor) Next(rec interface{}) (err error) {
+func (cur Cursor) Next(rec proto.Message) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -501,18 +503,18 @@ func (cur Cursor) Next(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.db.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalData(&data, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.db.unmarshalData(&data, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 
 	return
 }
 
 // Retrieve the last record of the database.
-func (cur Cursor) Last(rec interface{}) (err error) {
+func (cur Cursor) Last(rec proto.Message) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -525,18 +527,18 @@ func (cur Cursor) Last(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.db.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalData(&data, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.db.unmarshalData(&data, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 
 	return
 }
 
 // Retrieve the previous record from the cursor.
-func (cur Cursor) Prev(rec interface{}) (err error) {
+func (cur Cursor) Prev(rec proto.Message) (err error) {
 	var key, data C.DBT
 
 	key.flags |= C.DB_DBT_REALLOC
@@ -549,12 +551,12 @@ func (cur Cursor) Prev(rec interface{}) (err error) {
 		return
 	}
 
-	err = cur.db.unmarshalKey(&key, rec)
+	err = cur.db.unmarshalData(&data, rec)
 	if err != nil {
 		return
 	}
 
-	err = cur.db.unmarshalData(&data, rec)
+	err = cur.db.unmarshalKey(&key, rec)
 
 	return
 }
